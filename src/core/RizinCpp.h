@@ -55,7 +55,7 @@ static inline auto fromOwned(RZ_OWN RzList *data) -> UniquePtrCP<decltype(data),
 // deprecated, prefer using CutterPVector and CutterRzList instead
 #define CutterRzListForeach(list, it, type, x)                                                     \
     if (list)                                                                                      \
-        for (it = list->head; it && ((x = static_cast<type *>(it->data))); it = it->n)
+        for (it = list->head; it && ((x = static_cast<type *>(it->elem))); it = it->next)
 
 #define CutterRzVectorForeach(vec, it, type)                                                       \
     if ((vec) && (vec)->a)                                                                         \
@@ -133,7 +133,7 @@ public:
             if (!iter) {
                 return *this;
             }
-            iter = iter->n;
+            iter = iter->next;
             return *this;
         }
         iterator operator++(int)
@@ -149,7 +149,7 @@ public:
             if (!iter) {
                 return nullptr;
             }
-            return reinterpret_cast<T *>(iter->data);
+            return reinterpret_cast<T *>(iter->elem);
         }
     };
 
@@ -162,6 +162,32 @@ public:
         return iterator(list->head);
     }
     iterator end() const { return iterator(nullptr); }
+};
+
+template<typename T>
+class CutterRzIter
+{
+    UniquePtrC<RzIterator, &rz_iterator_free> rzIter;
+
+public:
+    CutterRzIter(RzIterator *rzIter) : rzIter(rzIter)
+    {
+        // immediately attempt advancing by 1, otherwise it's hard to distinguish whether current
+        // element is null due to not having called next, or due to having run out of elements
+        if (rzIter) {
+            ++*this;
+        }
+    }
+
+    CutterRzIter<T> &operator++()
+    {
+        rz_iterator_next(rzIter.get());
+        return *this;
+    }
+    operator bool() { return rzIter && rzIter->cur; }
+    T &operator*() { return *reinterpret_cast<RzAnalysisBytes *>(rzIter->cur); }
+    T *get() { return reinterpret_cast<RzAnalysisBytes *>(rzIter->cur); }
+    T *operator->() { return reinterpret_cast<RzAnalysisBytes *>(rzIter->cur); }
 };
 
 #endif // RIZINCPP_H

@@ -273,6 +273,7 @@ void CutterCore::loadCutterRC()
         }
         qInfo() << tr("Loading initialization file from ") << cutterRCFilePath;
         rz_core_cmd_file(core, cutterRCFilePath.toUtf8().constData());
+        rz_cons_flush();
     }
 }
 
@@ -286,6 +287,7 @@ void CutterCore::loadDefaultCutterRC()
     }
     qInfo() << tr("Loading initialization file from ") << cutterRCFilePath;
     rz_core_cmd_file(core, cutterRCFilePath.toUtf8().constData());
+    rz_cons_flush();
 }
 
 QList<QString> CutterCore::sdbList(QString path)
@@ -293,22 +295,25 @@ QList<QString> CutterCore::sdbList(QString path)
     CORE_LOCK();
     QList<QString> list = QList<QString>();
     Sdb *root = sdb_ns_path(core->sdb, path.toUtf8().constData(), 0);
-    if (root) {
-        void *vsi;
-        ls_iter_t *iter;
-        ls_foreach(root->ns, iter, vsi)
-        {
-            SdbNs *nsi = (SdbNs *)vsi;
+    if (root && root->ns) {
+        for (const auto &nsi : CutterRzList<SdbNs>(root->ns)) {
             list << nsi->name;
         }
     }
     return list;
 }
 
-using SdbListPtr = std::unique_ptr<SdbList, decltype(&ls_free)>;
-static SdbListPtr makeSdbListPtr(SdbList *list)
+using PVectorPtr = std::unique_ptr<RzPVector, decltype(&rz_pvector_free)>;
+static PVectorPtr makePVectorPtr(RzPVector *vec)
 {
-    return { list, ls_free };
+    return { vec, rz_pvector_free };
+}
+
+static bool foreach_keys_cb(void *user, const SdbKv *kv)
+{
+    auto list = reinterpret_cast<QList<QString> *>(user);
+    *list << kv->base.key;
+    return true;
 }
 
 QList<QString> CutterCore::sdbListKeys(QString path)
@@ -317,14 +322,7 @@ QList<QString> CutterCore::sdbListKeys(QString path)
     QList<QString> list = QList<QString>();
     Sdb *root = sdb_ns_path(core->sdb, path.toUtf8().constData(), 0);
     if (root) {
-        void *vsi;
-        ls_iter_t *iter;
-        SdbListPtr l = makeSdbListPtr(sdb_foreach_list(root, false));
-        ls_foreach(l, iter, vsi)
-        {
-            SdbKv *nsi = (SdbKv *)vsi;
-            list << reinterpret_cast<char *>(nsi->base.key);
-        }
+        sdb_foreach(root, foreach_keys_cb, &list);
     }
     return list;
 }
@@ -334,7 +332,7 @@ QString CutterCore::sdbGet(QString path, QString key)
     CORE_LOCK();
     Sdb *db = sdb_ns_path(core->sdb, path.toUtf8().constData(), 0);
     if (db) {
-        const char *val = sdb_const_get(db, key.toUtf8().constData(), 0);
+        const char *val = sdb_const_get(db, key.toUtf8().constData());
         if (val && *val)
             return val;
     }
@@ -347,7 +345,7 @@ bool CutterCore::sdbSet(QString path, QString key, QString val)
     Sdb *db = sdb_ns_path(core->sdb, path.toUtf8().constData(), 1);
     if (!db)
         return false;
-    return sdb_set(db, key.toUtf8().constData(), val.toUtf8().constData(), 0);
+    return sdb_set(db, key.toUtf8().constData(), val.toUtf8().constData());
 }
 
 QString CutterCore::sanitizeStringForCommand(QString s)
@@ -473,19 +471,7 @@ QString CutterCore::cmdRaw(const char *cmd)
 {
     QString res;
     CORE_LOCK();
-    rz_cons_push();
-
-    // rz_core_cmd does not return the output of the command
-    rz_core_cmd(core, cmd, 0);
-
-    // we grab the output straight from rz_cons
-    res = rz_cons_get_buffer();
-
-    // cleaning up
-    rz_cons_pop();
-    rz_cons_echo(NULL);
-
-    return res;
+    return rz_core_cmd_str(core, cmd);
 }
 
 CutterJson CutterCore::cmdj(const char *str)
@@ -496,7 +482,7 @@ CutterJson CutterCore::cmdj(const char *str)
         res = rz_core_cmd_str(core, str);
     }
 
-    return parseJson(res, str);
+    return parseJson("cmdj", res, str);
 }
 
 QString CutterCore::cmdTask(const QString &str)
@@ -507,9 +493,9 @@ QString CutterCore::cmdTask(const QString &str)
     return task.getResult();
 }
 
-CutterJson CutterCore::parseJson(char *res, const char *cmd)
+CutterJson CutterCore::parseJson(const char *name, char *res, const char *cmd)
 {
-    if (!res) {
+    if (RZ_STR_ISEMPTY(res)) {
         return CutterJson();
     }
 
@@ -517,24 +503,17 @@ CutterJson CutterCore::parseJson(char *res, const char *cmd)
 
     if (!doc) {
         if (cmd) {
-            eprintf("Failed to parse JSON for command \"%s\"\n", cmd);
+            RZ_LOG_ERROR("%s: Failed to parse JSON for command \"%s\"\n%s\n", name, cmd, res);
         } else {
-            eprintf("Failed to parse JSON\n");
+            RZ_LOG_ERROR("%s: Failed to parse JSON %s\n", name, res);
         }
-        const int MAX_JSON_DUMP_SIZE = 8 * 1024;
-        size_t originalSize = strlen(res);
-        if (originalSize > MAX_JSON_DUMP_SIZE) {
-            res[MAX_JSON_DUMP_SIZE] = 0;
-            eprintf("%zu bytes total: %s ...\n", originalSize, res);
-        } else {
-            eprintf("%s\n", res);
-        }
+        RZ_LOG_ERROR("%s: %s\n", name, res);
     }
 
     return CutterJson(doc, QSharedPointer<CutterJsonOwner>::create(doc, res));
 }
 
-QStringList CutterCore::autocomplete(const QString &cmd, RzLinePromptType promptType, size_t limit)
+QStringList CutterCore::autocomplete(const QString &cmd, RzLinePromptType promptType)
 {
     RzLineBuffer buf;
     int c = snprintf(buf.data, sizeof(buf.data), "%s", cmd.toUtf8().constData());
@@ -543,18 +522,17 @@ QStringList CutterCore::autocomplete(const QString &cmd, RzLinePromptType prompt
     }
     buf.index = buf.length = std::min((int)(sizeof(buf.data) - 1), c);
 
-    RzLineCompletion completion;
-    rz_line_completion_init(&completion, limit);
-    rz_core_autocomplete(core(), &completion, &buf, promptType);
+    RzLineNSCompletionResult *compr = rz_core_autocomplete_rzshell(core(), &buf, promptType);
 
     QStringList r;
-    r.reserve(rz_pvector_len(&completion.args));
-    for (size_t i = 0; i < rz_pvector_len(&completion.args); i++) {
+    auto optslen = rz_pvector_len(&compr->options);
+    r.reserve(optslen);
+    for (size_t i = 0; i < optslen; i++) {
         r.push_back(QString::fromUtf8(
-                reinterpret_cast<const char *>(rz_pvector_at(&completion.args, i))));
+                reinterpret_cast<const char *>(rz_pvector_at(&compr->options, i))));
     }
+    rz_line_ns_completion_result_free(compr);
 
-    rz_line_completion_fini(&completion);
     return r;
 }
 
@@ -602,8 +580,6 @@ bool CutterCore::loadFile(QString path, ut64 baddr, ut64 mapaddr, int perms, int
             rz_bin_select_idx(core->bin, NULL, idx);
         }
 #endif
-    } else {
-        // Not loading RzBin info coz va = false
     }
 
     auto iod = core->io ? core->io->desc : NULL;
@@ -611,7 +587,8 @@ bool CutterCore::loadFile(QString path, ut64 baddr, ut64 mapaddr, int perms, int
             core->file && iod && (core->file->fd == iod->fd) && iod->plugin && iod->plugin->isdbg;
 
     if (!debug && rz_flag_get(core->flags, "entry0")) {
-        rz_core_cmd0(core, "s entry0");
+        ut64 addr = rz_num_math(core->num, "entry0");
+        rz_core_seek_and_save(core, addr, true);
     }
 
     if (perms & RZ_PERM_W) {
@@ -621,6 +598,7 @@ bool CutterCore::loadFile(QString path, ut64 baddr, ut64 mapaddr, int perms, int
         }
     }
 
+    rz_cons_flush();
     fflush(stdout);
     return true;
 }
@@ -715,19 +693,16 @@ void CutterCore::delFlag(const QString &name)
     emit flagsChanged();
 }
 
-PRzAnalysisBytes CutterCore::getRzAnalysisBytesSingle(RVA addr)
+CutterRzIter<RzAnalysisBytes> CutterCore::getRzAnalysisBytesSingle(RVA addr)
 {
     CORE_LOCK();
     ut8 buf[128];
     rz_io_read_at(core->io, addr, buf, sizeof(buf));
 
-    auto seek = seekTemp(addr);
-    auto vec = fromOwned(rz_core_analysis_bytes(core, buf, sizeof(buf), 1));
-
-    auto ab = vec && rz_pvector_len(vec.get()) > 0
-            ? reinterpret_cast<RzAnalysisBytes *>(rz_pvector_pop_front(vec.get()))
-            : nullptr;
-    return { ab, rz_analysis_bytes_free };
+    // Warning! only safe to use with stack buffer, due to instruction count being 1
+    auto result =
+            CutterRzIter<RzAnalysisBytes>(rz_core_analysis_bytes(core, addr, buf, sizeof(buf), 1));
+    return result;
 }
 
 QString CutterCore::getInstructionBytes(RVA addr)
@@ -1027,18 +1002,10 @@ RVA CutterCore::nextOpAddr(RVA startAddr, int count)
 {
     CORE_LOCK();
     auto seek = seekTemp(startAddr);
-    auto vec =
-            fromOwned(rz_core_analysis_bytes(core, core->block, (int)core->blocksize, count + 1));
+    auto consumed =
+            rz_core_analysis_ops_size(core, core->offset, core->block, (int)core->blocksize, count);
 
-    RVA addr = startAddr + 1;
-    if (!vec) {
-        return addr;
-    }
-    auto ab = reinterpret_cast<RzAnalysisBytes *>(rz_pvector_tail(vec.get()));
-    if (!(ab && ab->op)) {
-        return addr;
-    }
-    addr = ab->op->addr;
+    RVA addr = startAddr + consumed;
     return addr;
 }
 
@@ -1324,7 +1291,7 @@ RVA CutterCore::getLastFunctionInstruction(RVA addr)
     if (!fcn) {
         return RVA_INVALID;
     }
-    RzAnalysisBlock *lastBB = (RzAnalysisBlock *)rz_list_last(fcn->bbs);
+    RzAnalysisBlock *lastBB = (RzAnalysisBlock *)rz_pvector_tail(fcn->bbs);
     return lastBB ? rz_analysis_block_get_op_addr(lastBB, lastBB->ninstr - 1) : RVA_INVALID;
 }
 
@@ -1399,13 +1366,17 @@ CutterJson CutterCore::getSignatureInfo()
     if (!signature) {
         return {};
     }
-    return parseJson(signature, nullptr);
+    return parseJson("signature", signature, nullptr);
 }
 
 bool CutterCore::existsFileInfo()
 {
     CORE_LOCK();
-    const RzBinInfo *info = rz_bin_get_info(core->bin);
+    RzBinObject *bobj = rz_bin_cur_object(core->bin);
+    if (!bobj) {
+        return false;
+    }
+    const RzBinInfo *info = rz_bin_object_get_info(bobj);
     if (!(info && info->rclass)) {
         return false;
     }
@@ -1666,7 +1637,7 @@ QVector<Chunk> CutterCore::getHeapChunks(RVA arena_addr)
             rz_list_free(arenas);
             return chunks_vector;
         }
-        m_arena = ((RzArenaListItem *)arenas->head->data)->addr;
+        m_arena = ((RzArenaListItem *)rz_list_first(arenas))->addr;
         rz_list_free(arenas);
     } else {
         m_arena = arena_addr;
@@ -2793,7 +2764,7 @@ int CutterCore::breakpointIndexAt(RVA addr)
 BreakpointDescription CutterCore::getBreakpointAt(RVA addr)
 {
     CORE_LOCK();
-    int index = breakpointIndexAt(addr);
+    int index = rz_bp_get_index_at(core->dbg->bp, addr);
     auto bp = rz_bp_get_index(core->dbg->bp, index);
     if (bp) {
         return breakpointDescriptionFromRizin(index, bp);
@@ -3086,7 +3057,7 @@ QList<FunctionDescription> CutterCore::getAllFunctions()
         function.linearSize = rz_analysis_function_linear_size(fcn);
         function.nargs = rz_analysis_arg_count(fcn);
         function.nlocals = rz_analysis_var_local_count(fcn);
-        function.nbbs = rz_list_length(fcn->bbs);
+        function.nbbs = rz_pvector_len(fcn->bbs);
         function.calltype = fcn->cc ? QString::fromUtf8(fcn->cc) : QString();
         function.name = fcn->name ? QString::fromUtf8(fcn->name) : QString();
         function.edges = rz_analysis_function_count_edges(fcn, nullptr);
@@ -3153,7 +3124,8 @@ QList<ExportDescription> CutterCore::getAllExports()
     if (!bf) {
         return {};
     }
-    const RzList *symbols = rz_bin_object_get_symbols(bf->o);
+
+    const RzPVector *symbols = rz_bin_object_get_symbols(bf->o);
     if (!symbols) {
         return {};
     }
@@ -3162,7 +3134,7 @@ QList<ExportDescription> CutterCore::getAllExports()
     bool demangle = rz_config_get_b(core->config, "bin.demangle");
 
     QList<ExportDescription> ret;
-    for (const auto &symbol : CutterRzList<RzBinSymbol>(symbols)) {
+    for (const auto &symbol : CutterPVector<RzBinSymbol>(symbols)) {
         if (!(symbol->name && rz_core_sym_is_export(symbol))) {
             continue;
         }
@@ -3187,13 +3159,15 @@ QList<ExportDescription> CutterCore::getAllExports()
 QList<SymbolDescription> CutterCore::getAllSymbols()
 {
     CORE_LOCK();
-    RzListIter *it;
+    RzBinFile *bf = rz_bin_cur(core->bin);
+    if (!bf) {
+        return {};
+    }
 
     QList<SymbolDescription> ret;
-
-    RzBinSymbol *bs;
-    if (core && core->bin && core->bin->cur && core->bin->cur->o) {
-        CutterRzListForeach (core->bin->cur->o->symbols, it, RzBinSymbol, bs) {
+    const RzPVector *symbols = rz_bin_object_get_symbols(bf->o);
+    if (symbols) {
+        for (const auto &bs : CutterPVector<RzBinSymbol>(symbols)) {
             QString type = QString(bs->bind) + " " + QString(bs->type);
             SymbolDescription symbol;
             symbol.vaddr = bs->vaddr;
@@ -3202,11 +3176,13 @@ QList<SymbolDescription> CutterCore::getAllSymbols()
             symbol.type = QString(bs->type);
             ret << symbol;
         }
+    }
 
+    const RzPVector *entries = rz_bin_object_get_entries(bf->o);
+    if (symbols) {
         /* list entrypoints as symbols too */
         int n = 0;
-        RzBinAddr *entry;
-        CutterRzListForeach (core->bin->cur->o->entries, it, RzBinAddr, entry) {
+        for (const auto &entry : CutterPVector<RzBinAddr>(entries)) {
             SymbolDescription symbol;
             symbol.vaddr = entry->vaddr;
             symbol.name = QString("entry") + QString::number(n++);
@@ -3226,15 +3202,12 @@ QList<HeaderDescription> CutterCore::getAllHeaders()
     if (!bf) {
         return {};
     }
-    const RzList *fields = rz_bin_object_get_fields(bf->o);
+    const RzPVector *fields = rz_bin_object_get_fields(bf->o);
     if (!fields) {
         return {};
     }
-    RzListIter *iter;
-    RzBinField *field;
     QList<HeaderDescription> ret;
-
-    CutterRzListForeach (fields, iter, RzBinField, field) {
+    for (auto field : CutterPVector<RzBinField>(fields)) {
         HeaderDescription header;
         header.vaddr = field->vaddr;
         header.paddr = field->paddr;
@@ -3242,7 +3215,6 @@ QList<HeaderDescription> CutterCore::getAllHeaders()
         header.name = field->name;
         ret << header;
     }
-
     return ret;
 }
 
@@ -3345,8 +3317,9 @@ QList<StringDescription> CutterCore::getAllStrings()
     if (!obj) {
         return {};
     }
-    RzList *l = rz_core_bin_whole_strings(core, bf);
-    if (!l) {
+
+    RzPVector *strings = rz_core_bin_whole_strings(core, bf);
+    if (!strings) {
         return {};
     }
 
@@ -3357,7 +3330,7 @@ QList<StringDescription> CutterCore::getAllStrings()
     opt.esc_double_quotes = true;
 
     QList<StringDescription> ret;
-    for (const auto &str : CutterRzList<RzBinString>(l)) {
+    for (const auto &str : CutterPVector<RzBinString>(strings)) {
         auto section = obj ? rz_bin_get_section_at(obj, str->paddr, 0) : NULL;
 
         StringDescription string;
@@ -3420,7 +3393,7 @@ QList<SectionDescription> CutterCore::getAllSections()
         return sections;
     }
 
-    RzList *sects = rz_bin_object_get_sections(o);
+    RzPVector *sects = rz_bin_object_get_sections(o);
     if (!sects) {
         return sections;
     }
@@ -3428,10 +3401,8 @@ QList<SectionDescription> CutterCore::getAllSections()
     if (!hashnames) {
         return sections;
     }
-    rz_list_push(hashnames, rz_str_new("entropy"));
-    RzListIter *it;
-    RzBinSection *sect;
-    CutterRzListForeach (sects, it, RzBinSection, sect) {
+    rz_list_push(hashnames, rz_str_dup("entropy"));
+    for (const auto &sect : CutterPVector<RzBinSection>(sects)) {
         if (RZ_STR_ISEMPTY(sect->name))
             continue;
 
@@ -3443,18 +3414,18 @@ QList<SectionDescription> CutterCore::getAllSections()
         section.size = sect->size;
         section.perm = rz_str_rwx_i(sect->perm);
         if (sect->size > 0) {
-            HtPP *digests = rz_core_bin_create_digests(core, sect->paddr, sect->size, hashnames);
+            HtSS *digests = rz_core_bin_create_digests(core, sect->paddr, sect->size, hashnames);
             if (!digests) {
                 continue;
             }
-            const char *entropy = (const char *)ht_pp_find(digests, "entropy", NULL);
+            const char *entropy = (const char *)ht_ss_find(digests, "entropy", NULL);
             section.entropy = rz_str_get(entropy);
-            ht_pp_free(digests);
+            ht_ss_free(digests);
         }
 
         sections << section;
     }
-    rz_list_free(sects);
+    rz_pvector_free(sects);
     return sections;
 }
 
@@ -3468,15 +3439,14 @@ QStringList CutterCore::getSectionList()
         return ret;
     }
 
-    RzList *sects = rz_bin_object_get_sections(o);
+    RzPVector *sects = rz_bin_object_get_sections(o);
     if (!sects) {
         return ret;
     }
-    RzListIter *it;
-    RzBinSection *sect;
-    CutterRzListForeach (sects, it, RzBinSection, sect) {
+    for (const auto &sect : CutterPVector<RzBinSection>(sects)) {
         ret << sect->name;
     }
+    rz_pvector_free(sects);
     return ret;
 }
 
@@ -3492,15 +3462,13 @@ QList<SegmentDescription> CutterCore::getAllSegments()
     if (!bf) {
         return {};
     }
-    RzList *segments = rz_bin_object_get_segments(bf->o);
+    RzPVector *segments = rz_bin_object_get_segments(bf->o);
     if (!segments) {
         return {};
     }
 
-    RzBinSection *segment;
-    RzListIter *iter;
     QList<SegmentDescription> ret;
-    CutterRzListForeach (segments, iter, RzBinSection, segment) {
+    for (const auto &segment : CutterPVector<RzBinSection>(segments)) {
         SegmentDescription segDesc;
         segDesc.name = segment->name;
         segDesc.vaddr = segment->vaddr;
@@ -3510,7 +3478,7 @@ QList<SegmentDescription> CutterCore::getAllSegments()
         segDesc.perm = perms_str(segment->perm);
         ret << segDesc;
     }
-    rz_list_free(segments);
+    rz_pvector_free(segments);
 
     return ret;
 }
@@ -3527,10 +3495,8 @@ QList<EntrypointDescription> CutterCore::getAllEntrypoint()
     ut64 laddr = rz_bin_get_laddr(core->bin);
 
     QList<EntrypointDescription> qList;
-    const RzList *entries = rz_bin_object_get_entries(bf->o);
-    RzListIter *iter;
-    RzBinAddr *entry;
-    CutterRzListForeach (entries, iter, RzBinAddr, entry) {
+    const RzPVector *entries = rz_bin_object_get_entries(bf->o);
+    for (const auto &entry : CutterPVector<RzBinAddr>(entries)) {
         if (entry->type != RZ_BIN_ENTRY_TYPE_PROGRAM) {
             continue;
         }
@@ -3646,21 +3612,14 @@ QList<QString> CutterCore::getAllAnalysisClasses(bool sorted)
 {
     CORE_LOCK();
     QList<QString> ret;
-
-    SdbListPtr l = makeSdbListPtr(rz_analysis_class_get_all(core->analysis, sorted));
+    PVectorPtr l = makePVectorPtr(rz_analysis_class_get_all(core->analysis, sorted));
     if (!l) {
         return ret;
     }
-    ret.reserve(static_cast<int>(l->length));
-
-    SdbListIter *it;
-    void *entry;
-    ls_foreach(l, it, entry)
-    {
-        auto kv = reinterpret_cast<SdbKv *>(entry);
+    ret.reserve(static_cast<int>(rz_pvector_len(l.get())));
+    for (const auto &kv : CutterPVector<SdbKv>(l.get())) {
         ret.append(QString::fromUtf8(reinterpret_cast<const char *>(kv->base.key)));
     }
-
     return ret;
 }
 
@@ -3781,8 +3740,8 @@ void CutterCore::setAnalysisMethod(const QString &className, const AnalysisMetho
 {
     CORE_LOCK();
     RzAnalysisMethod analysisMeth;
-    analysisMeth.name = rz_str_new(meth.name.toUtf8().constData());
-    analysisMeth.real_name = rz_str_new(meth.realName.toUtf8().constData());
+    analysisMeth.name = rz_str_dup(meth.name.toUtf8().constData());
+    analysisMeth.real_name = rz_str_dup(meth.realName.toUtf8().constData());
     analysisMeth.addr = meth.addr;
     analysisMeth.vtable_offset = meth.vtableOffset;
     rz_analysis_class_method_set(core->analysis, className.toUtf8().constData(), &analysisMeth);
@@ -4345,6 +4304,7 @@ void CutterCore::loadScript(const QString &scriptname)
     {
         CORE_LOCK();
         rz_core_cmd_file(core, scriptname.toUtf8().constData());
+        rz_cons_flush();
     }
     triggerRefreshAll();
 }
@@ -4363,10 +4323,9 @@ QString CutterCore::getVersionInformation()
         const char *name;
         const char *(*callback)();
     } vcs[] = {
-        { "rz_analysis", &rz_analysis_version },
+        { "rz_arch", &rz_arch_version },
         { "rz_lib", &rz_lib_version },
         { "rz_egg", &rz_egg_version },
-        { "rz_asm", &rz_asm_version },
         { "rz_bin", &rz_bin_version },
         { "rz_cons", &rz_cons_version },
         { "rz_flag", &rz_flag_version },
@@ -4379,7 +4338,6 @@ QString CutterCore::getVersionInformation()
 #if !USE_LIB_MAGIC
         { "rz_magic", &rz_magic_version },
 #endif
-        { "rz_parse", &rz_parse_version },
         { "rz_reg", &rz_reg_version },
         { "rz_sign", &rz_sign_version },
         { "rz_search", &rz_search_version },
@@ -4402,13 +4360,14 @@ QStringList CutterCore::getColorThemes()
 {
     QStringList r;
     CORE_LOCK();
-    RzList *themes_list = rz_core_theme_list(core);
-    RzListIter *it;
-    const char *th;
-    CutterRzListForeach (themes_list, it, const char, th) {
+    RzPVector *themes_list = rz_core_get_themes(core);
+    if (!themes_list) {
+        return r;
+    }
+    for (const auto &th : CutterPVector<char>(themes_list)) {
         r << fromOwnedCharPtr(rz_str_trim_dup(th));
     }
-    rz_list_free(themes_list);
+    rz_pvector_free(themes_list);
     return r;
 }
 

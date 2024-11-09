@@ -14,9 +14,14 @@ if(WIN32)
 			if (CUTTER_ENABLE_DEPENDENCY_DOWNLOADS)
 				set(CPACK_INSTALL_SCRIPTS ${CMAKE_CURRENT_SOURCE_DIR}/WindowsBundlePython.cmake)
 			endif()
-			find_package(PythonInterp REQUIRED)
-			install(DIRECTORY ${CUTTER_DEPS}/pyside/lib/site-packages DESTINATION "python${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR}")
-			install(FILES ${CUTTER_DEPS}/pyside/bin/shiboken2.abi3.dll ${CUTTER_DEPS}/pyside/bin/pyside2.abi3.dll DESTINATION .)
+			if(CMAKE_VERSION VERSION_LESS "3.12.0") 
+				find_package(PythonInterp REQUIRED)
+				install(DIRECTORY ${CUTTER_DEPS}/pyside/lib/site-packages DESTINATION "python${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR}")
+			else()
+				find_package (Python3 ${CUTTER_PYTHON_MIN} REQUIRED COMPONENTS)
+				install(DIRECTORY ${CUTTER_DEPS}/pyside/lib/site-packages DESTINATION "python${Python3_VERSION_MAJOR}${Python3_VERSION_MINOR}")
+			endif()
+			install(FILES ${CUTTER_DEPS}/pyside/bin/shiboken6.abi3.dll ${CUTTER_DEPS}/pyside/bin/pyside6.abi3.dll DESTINATION .)
 		endif()
 		install(SCRIPT WindowsBundleQt.cmake)
 	endif()
@@ -24,7 +29,9 @@ if(WIN32)
 		install(CODE "
 			set(ENV{RZ_PREFIX} \"\${CMAKE_INSTALL_PREFIX}\")
 			set(ENV{PATH} \"\${CMAKE_INSTALL_PREFIX};\$ENV{PATH}\")
-			execute_process(COMMAND powershell \"${CMAKE_CURRENT_SOURCE_DIR}/bundle_jsdec.ps1\" \"\${CMAKE_INSTALL_PREFIX}\"
+			execute_process(COMMAND powershell \"${CMAKE_CURRENT_SOURCE_DIR}/bundle_jsdec.ps1\"
+							\"\${CMAKE_INSTALL_PREFIX}\"
+							\"-DCUTTER_INSTALL_PLUGDIR=plugins/native\"
 							WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 							RESULT_VARIABLE SCRIPT_RESULT)
 			if (SCRIPT_RESULT)
@@ -102,7 +109,7 @@ if(APPLE)
 
 	if(CUTTER_PACKAGE_DEPENDENCIES AND CUTTER_ENABLE_PYTHON)
 		set(EMBED_PYTHON_SH "${CMAKE_CURRENT_SOURCE_DIR}/appbundle_embed_python.sh")
-		set(PYTHON_FRAMEWORK_DIR "${CUTTER_DEPS}/python/Python.framework")
+		set(PYTHON_FRAMEWORK_DIR "${CUTTER_DEPS}/python/Library/Frameworks/Python.framework")
 		set(PYSIDE_PREFIX "${CUTTER_DEPS}/pyside")
 		configure_file("${CMAKE_CURRENT_SOURCE_DIR}/MacOSBundlePython.cmake.in"
 			"${CMAKE_CURRENT_BINARY_DIR}/MacOSBundlePython.cmake" @ONLY)
@@ -124,9 +131,14 @@ endif()
 
 if(CUTTER_ENABLE_DEPENDENCY_DOWNLOADS AND (NOT WIN32))
 	if (CUTTER_PACKAGE_JSDEC)
+		if(APPLE)
+			set (JSDEC_PLUGIN_OPTIONS "-DCUTTER_INSTALL_PLUGDIR=plugins/native")
+		else()
+			set (JSDEC_PLUGIN_OPTIONS "")
+		endif()
 		install(CODE "
 			execute_process(COMMAND \"${CMAKE_CURRENT_SOURCE_DIR}/../scripts/jsdec.sh\"
-							--pkg-config-path=\${CMAKE_INSTALL_PREFIX}/lib/pkgconfig --prefix=\${CMAKE_INSTALL_PREFIX}
+							\"\${CMAKE_INSTALL_PREFIX}\" \"${JSDEC_PLUGIN_OPTIONS}\"
 							WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 							RESULT_VARIABLE SCRIPT_RESULT)
 			if (SCRIPT_RESULT)
@@ -150,6 +162,9 @@ if(CUTTER_ENABLE_DEPENDENCY_DOWNLOADS AND (NOT WIN32))
 			set (YARA_PLUGIN_OPTIONS "-DCUTTER_INSTALL_PLUGDIR=plugins/native")
 		else()
 			set (YARA_PLUGIN_OPTIONS "")
+		endif()
+		if (CUTTER_QT EQUAL 6)
+			set (YARA_PLUGIN_OPTIONS "${YARA_PLUGIN_OPTIONS} -DCUTTER_QT6=ON")
 		endif()
 		install(CODE "
 			execute_process(COMMAND
