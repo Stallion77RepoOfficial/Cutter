@@ -28,23 +28,24 @@ AboutDialog::AboutDialog(QWidget *parent) : QDialog(parent), ui(new Ui::AboutDia
             tr("Version") + " " CUTTER_VERSION_FULL "<br/>" + tr("Using rizin ")
             + Core()->getRizinVersionReadable() + "<br/>" + buildQtVersionString() + "<p><b>"
             + tr("Optional Features:") + "</b><br/>"
-            + QString("Python: %1<br/>")
+            + tr("Python: %1")
                       .arg(
 #ifdef CUTTER_ENABLE_PYTHON
-                              "ON"
+                              tr("ON")
 #else
-                              "OFF"
+                              tr("OFF")
 #endif
-                              )
-            + QString("Python Bindings: %2</p>")
+                                      )
+            + "<br/>"
+            + tr("Python Bindings: %1")
                       .arg(
 #ifdef CUTTER_ENABLE_PYTHON_BINDINGS
-                              "ON"
+                              tr("ON")
 #else
-                              "OFF"
+                              tr("OFF")
 #endif
-                              )
-            + "<h2>" + tr("License") + "</h2>"
+                                      )
+            + "</p>" + "<h2>" + tr("License") + "</h2>"
             + tr("This Software is released under the GNU General Public License v3.0") + "<h2>"
             + tr("Authors") + "</h2>"
             + tr("Cutter is developed by the community and maintained by its core and development "
@@ -95,7 +96,9 @@ void AboutDialog::on_checkForUpdatesButton_clicked()
 #if CUTTER_UPDATE_WORKER_AVAILABLE
     UpdateWorker updateWorker;
 
-    QProgressDialog waitDialog;
+    auto parentWindow = this;
+
+    QProgressDialog waitDialog(parentWindow);
     QProgressBar *bar = new QProgressBar(&waitDialog);
     bar->setMaximum(0);
 
@@ -104,12 +107,12 @@ void AboutDialog::on_checkForUpdatesButton_clicked()
 
     connect(&updateWorker, &UpdateWorker::checkComplete, &waitDialog, &QProgressDialog::cancel);
     connect(&updateWorker, &UpdateWorker::checkComplete,
-            [&updateWorker](const QVersionNumber &version, const QString &error) {
+            [&updateWorker, parentWindow](const QVersionNumber &version, const QString &error) {
                 if (!error.isEmpty()) {
-                    QMessageBox::critical(nullptr, tr("Error!"), error);
+                    QMessageBox::critical(parentWindow, tr("Error!"), error);
                 } else {
                     if (version <= UpdateWorker::currentVersionNumber()) {
-                        QMessageBox::information(nullptr, tr("Version control"),
+                        QMessageBox::information(parentWindow, tr("Version control"),
                                                  tr("Cutter is up to date!"));
                     } else {
                         updateWorker.showUpdateDialog(false);

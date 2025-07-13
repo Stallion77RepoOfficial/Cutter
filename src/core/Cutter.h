@@ -62,6 +62,22 @@ struct CUTTER_EXPORT RegisterRef
     QString name;
 };
 
+enum class SearchKind {
+    AsmCode,
+    HexString,
+    ROPGadgets,
+    ROPGadgetsRegex,
+    String,
+    StringCaseInsensitive,
+    StringRegexExtended,
+    Value32BE,
+    Value32LE,
+    Value64BE,
+    Value64LE,
+    CryptographicMaterial,
+    MagicSignature,
+};
+
 class CUTTER_EXPORT CutterCore : public QObject
 {
     Q_OBJECT
@@ -218,7 +234,7 @@ public:
     RVA getFunctionStart(RVA addr);
     RVA getFunctionEnd(RVA addr);
     RVA getLastFunctionInstruction(RVA addr);
-    QString flagAt(RVA addr);
+    QString flagAt(RVA addr, bool getClosestFlag = true);
     void createFunctionAt(RVA addr);
     void createFunctionAt(RVA addr, QString name);
     QStringList getDisassemblyPreview(RVA address, int num_of_lines);
@@ -443,7 +459,7 @@ public:
      * @param pid The pid of the process, -1 for the currently debugged process
      * @return List of ProcessDescription
      */
-    QList<ProcessDescription> getProcessThreads(int pid);
+    QList<ThreadDescription> getProcessThreads(int pid = -1);
     /**
      * @brief Get a list of heap chunks
      * Uses RZ_API rz_heap_chunks_list to get vector of chunks
@@ -564,8 +580,6 @@ public:
     void setGraphEmpty(bool empty);
     bool isGraphEmpty();
 
-    bool rebaseBin(RVA base_address);
-
     void getRegs();
     QList<QString> regs;
     void setSettings();
@@ -650,9 +664,15 @@ public:
     bool isAddressMapped(RVA addr);
 
     QList<MemoryMapDescription> getMemoryMap();
-    QList<SearchDescription> getAllSearch(QString searchFor, QString space, QString in);
+    QList<SearchDescription> getAllSearch(QString searchFor, SearchKind kind, QString in);
     QList<BreakpointDescription> getBreakpoints();
-    QList<ProcessDescription> getAllProcesses();
+    /**
+     * @brief Get list of processes attachable by debugger
+     *
+     * @param pid 0 - all processes, -1 - currently debugged process
+     * @return QList<ProcessDescription>
+     */
+    QList<ProcessDescription> getProcesses(int pid = 0);
     /**
      * @brief Get the right RzReg object based on the cutter state (debugging vs emulating)
      */
@@ -692,6 +712,8 @@ public:
 
     QStringList getSectionList();
 
+    RzCoreLocked lock();
+    CUTTER_DEPRECATED("Use CutterCore::lock instead")
     RzCoreLocked core();
 
     static QString ansiEscapeToHtml(const QString &text);
@@ -849,6 +871,7 @@ private:
 
     QVector<QString> getCutterRCFilePaths() const;
     QList<TypeDescription> getBaseType(RzBaseTypeKind kind, const char *category);
+    QList<SearchDescription> getAllSearchCommand(QString searchFor, SearchKind kind, QString in);
 };
 
 class CUTTER_EXPORT RzCoreLocked
@@ -861,8 +884,12 @@ public:
     RzCoreLocked &operator=(const RzCoreLocked &) = delete;
     RzCoreLocked(RzCoreLocked &&);
     ~RzCoreLocked();
-    operator RzCore *() const;
-    RzCore *operator->() const;
+    operator RzCore *() &;
+    RzCore *operator->() &;
+    // Reduce chance of following misuse of Core()->lock()
+    // rizinStruct* foo = rizin_func(Core()->lock()->something, arg);
+    operator RzCore *() && = delete;
+    RzCore *operator->() && = delete;
 };
 
 #endif // CUTTER_H

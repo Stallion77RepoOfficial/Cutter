@@ -83,9 +83,10 @@ struct TypeDescription
 struct SearchDescription
 {
     RVA offset;
-    int size;
+    size_t size;
     QString code;
     QString data;
+    QString detail;
 };
 
 struct SymbolDescription
@@ -344,6 +345,18 @@ struct ProcessDescription
     int ppid;
     RzDebugPidState status;
     QString path;
+};
+
+struct ThreadDescription
+{
+    bool current;
+    int pid;
+    int uid;
+    int ppid;
+    RzDebugPidState status;
+    QString path;
+    ut64 pc;
+    ut64 tls;
 };
 
 struct RefDescription

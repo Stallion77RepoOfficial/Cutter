@@ -3,6 +3,8 @@
 #include "Configuration.h"
 #include "dialogs/WriteCommandsDialogs.h"
 #include "dialogs/CommentsDialog.h"
+#include "dialogs/FlagDialog.h"
+#include "shortcuts/ShortcutManager.h"
 
 #include <QPainter>
 #include <QPaintEvent>
@@ -44,6 +46,7 @@ HexWidget::HexWidget(QWidget *parent)
       showAscii(true),
       showExHex(true),
       showExAddr(true),
+      ioModesController(parent),
       warningTimer(this)
 {
     setMouseTracking(true);
@@ -111,24 +114,36 @@ HexWidget::HexWidget(QWidget *parent)
     actionHexPairs->setCheckable(true);
     connect(actionHexPairs, &QAction::triggered, this, &HexWidget::onHexPairsModeEnabled);
 
-    actionCopy = new QAction(tr("Copy"), this);
+    actionCopy = Shortcuts()->makeAction("Hex.copy", this);
     addAction(actionCopy);
     actionCopy->setShortcutContext(Qt::ShortcutContext::WidgetWithChildrenShortcut);
-    actionCopy->setShortcut(QKeySequence::Copy);
     connect(actionCopy, &QAction::triggered, this, &HexWidget::copy);
 
-    actionCopyAddress = new QAction(tr("Copy address"), this);
+    actionCopyAddress = Shortcuts()->makeAction("General.copyAddress", this);
     actionCopyAddress->setShortcutContext(Qt::ShortcutContext::WidgetWithChildrenShortcut);
-    actionCopyAddress->setShortcut(Qt::CTRL | Qt::SHIFT | Qt::Key_C);
     connect(actionCopyAddress, &QAction::triggered, this, &HexWidget::copyAddress);
     addAction(actionCopyAddress);
 
     // Add comment option
-    actionComment = new QAction(tr("Add Comment"), this);
+    actionComment = Shortcuts()->makeAction("General.addComment", this);
     actionComment->setShortcutContext(Qt::ShortcutContext::WidgetWithChildrenShortcut);
-    actionComment->setShortcut(Qt::Key_Semicolon);
     connect(actionComment, &QAction::triggered, this, &HexWidget::onActionAddCommentTriggered);
     addAction(actionComment);
+
+    // Add flag option
+    actionAddFlag = Shortcuts()->makeAction("Hex.addFlag", this);
+    actionAddFlag->setText(tr("Add flag at %1").arg(RzAddressString(getLocationAddress())));
+    actionAddFlag->setShortcutContext(Qt::ShortcutContext::WidgetWithChildrenShortcut);
+    connect(actionAddFlag, &QAction::triggered, this, &HexWidget::onActionAddFlagTriggered);
+    connect(this, &HexWidget::positionChanged, this, [this](RVA pos) {
+        RzAnalysisFunction *fcn = Core()->functionAt(pos);
+        if (fcn) {
+            actionAddFlag->setVisible(false);
+        } else {
+            actionAddFlag->setVisible(true);
+        }
+    });
+    addAction(actionAddFlag);
 
     // delete comment option
     actionDeleteComment = new QAction(tr("Delete Comment"), this);
@@ -1152,12 +1167,21 @@ void HexWidget::contextMenuEvent(QContextMenuEvent *event)
 
     QString comment = Core()->getCommentAt(cursor.address);
 
-    if (comment.isNull() || comment.isEmpty()) {
+    if (comment.isEmpty()) {
         actionDeleteComment->setVisible(false);
         actionComment->setText(tr("Add Comment"));
     } else {
         actionDeleteComment->setVisible(true);
         actionComment->setText(tr("Edit Comment"));
+    }
+
+    QString flag = Core()->flagAt(cursor.address, false);
+    actionAddFlag->setData(flag);
+
+    if (flag.isEmpty()) {
+        actionAddFlag->setText(tr("Add flag at %1").arg(RzAddressString(cursor.address)));
+    } else {
+        actionAddFlag->setText(tr("Rename flag \"%1\"").arg(flag));
     }
 
     if (!ioModesController.canWrite()) {
@@ -1231,6 +1255,7 @@ void HexWidget::onActionAddCommentTriggered()
 {
     uint64_t addr = cursor.address;
     CommentsDialog::addOrEditComment(addr, this);
+    refresh();
 }
 
 // slot for deleting comment action
@@ -1238,6 +1263,15 @@ void HexWidget::onActionDeleteCommentTriggered()
 {
     uint64_t addr = cursor.address;
     Core()->delComment(addr);
+    refresh();
+}
+
+void HexWidget::onActionAddFlagTriggered()
+{
+    QString flagNameHint = actionAddFlag->data().toString();
+    if (FlagDialog(cursor.address, this, flagNameHint).exec()) {
+        refresh();
+    }
 }
 
 void HexWidget::onRangeDialogAccepted()

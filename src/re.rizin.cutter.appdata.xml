@@ -5,6 +5,9 @@
   <project_license>GPL-3.0</project_license>
   <name>Cutter</name>
   <summary>Free and Open Source Reverse Engineering Platform powered by Rizin and Qt</summary>
+  <developer id="com.github.rizinorg">
+    <name>Rizin Organization</name>
+  </developer>
 
   <description>
     <p>
@@ -15,16 +18,23 @@
   <launchable type="desktop-id">re.rizin.cutter.desktop</launchable>
 
   <screenshots>
-    <screenshot>
+    <screenshot type="default">
       <image>https://raw.githubusercontent.com/rizinorg/cutter/stable/docs/source/images/screenshot.png</image>
       <caption>Main UI</caption>
     </screenshot>
   </screenshots>
 
-  <url type="homepage">https://cutter.re/docs/</url>
-  <update_contact>xarkes</update_contact>
+  <url type="homepage">https://cutter.re/</url>
+  <url type="bugtracker">https://github.com/rizinorg/cutter/issues</url>
+  <url type="contact">https://cutter.re/#Join-our-communities</url>
+  <url type="contribute">https://cutter.re/docs/contributing.html</url>
+  <url type="help">https://cutter.re/docs</url>
+  <url type="translate">https://cutter.re/docs/contributing/translations/getting-started.html</url>
+  <url type="vcs-browser">https://github.com/rizinorg/cutter</url>
 
   <releases>
+    <release version="2.4.0" date="2024-04-28" />
+    <release version="2.3.4" date="2024-03-04" />
     <release version="2.3.3" date="2024-02-24" />
     <release version="2.3.2" date="2023-09-14" />
     <release version="2.3.1" date="2023-08-20" />

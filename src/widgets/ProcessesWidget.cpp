@@ -6,6 +6,7 @@
 #include <rz_debug.h>
 
 #include "core/MainWindow.h"
+#include "shortcuts/ShortcutManager.h"
 
 #define DEBUGGED_PID (-1)
 
@@ -33,13 +34,13 @@ ProcessesWidget::ProcessesWidget(MainWindow *main)
     ui->viewProcesses->setModel(modelFilter);
 
     // CTRL+F switches to the filter view and opens it in case it's hidden
-    QShortcut *searchShortcut = new QShortcut(QKeySequence::Find, this);
+    QShortcut *searchShortcut = Shortcuts()->makeQShortcut("General.showFilter", this);
     connect(searchShortcut, &QShortcut::activated, ui->quickFilterView,
             &QuickFilterView::showFilter);
     searchShortcut->setContext(Qt::WidgetWithChildrenShortcut);
 
     // ESC switches back to the processes table and clears the buffer
-    QShortcut *clearShortcut = new QShortcut(QKeySequence(Qt::Key_Escape), this);
+    QShortcut *clearShortcut = Shortcuts()->makeQShortcut("General.clearFilter", this);
     connect(clearShortcut, &QShortcut::activated, this, [this]() {
         ui->quickFilterView->clearFilter();
         ui->viewProcesses->setFocus();
@@ -106,7 +107,7 @@ void ProcessesWidget::setProcessesGrid()
     int i = 0;
     QFont font;
 
-    for (const auto &processesItem : Core()->getProcessThreads(DEBUGGED_PID)) {
+    for (const auto &processesItem : Core()->getProcesses(DEBUGGED_PID)) {
         st64 pid = processesItem.pid;
         st64 uid = processesItem.uid;
         QString status = translateStatus(processesItem.status);
@@ -155,9 +156,9 @@ void ProcessesWidget::onActivated(const QModelIndex &index)
     int pid = modelFilter->data(index.sibling(index.row(), ProcessesWidget::COLUMN_PID)).toInt();
     // Verify that the selected pid is still in the processes list since dp= will
     // attach to any given id. If it isn't found simply update the UI.
-    for (const auto &value : Core()->getAllProcesses()) {
+    for (const auto &value : Core()->getProcesses(DEBUGGED_PID)) {
         if (pid == value.pid) {
-            QMessageBox msgBox;
+            QMessageBox msgBox(this);
             switch (value.status) {
             case RZ_DBG_PROC_ZOMBIE:
             case RZ_DBG_PROC_DEAD:

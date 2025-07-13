@@ -19,6 +19,6 @@ fi
 meson setup --buildtype=release --pkg-config-path="$INSTALL_PREFIX/lib/pkgconfig" -Dbuild_type=cutter build_lib
 ninja -C build_lib
 
-mkdir build_plugin && cd build_plugin
+mkdir -p build_plugin && cd build_plugin
 cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DJSDEC_BUILD_DIR="../build_lib" -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" $EXTRA_CMAKE_OPTS ../cutter-plugin
 ninja install

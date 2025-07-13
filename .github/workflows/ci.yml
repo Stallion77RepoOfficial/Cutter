@@ -38,7 +38,7 @@ jobs:
             cxx-override: default
           - name: linux-x86_64-system-deps # ensure that Cutter can be built at least in basic config on Ubuntu 22.04 using sytem libraries
             image: ubuntu:22.04
-            python-version: 3.10.x
+            python-version: 3.11.x
             system-deps: true
             package: false
             tarball: false
@@ -161,10 +161,13 @@ jobs:
                              g++-12
         fi
     - uses: actions/setup-python@v5
+      if: matrix.system-deps == false
       with:
         python-version: ${{ matrix.python-version }}
     - name: py dependencies
       run: |
+        python3 --version
+        which python3
         # https://github.com/rizinorg/cutter/runs/7170222817?check_suite_focus=true
         python3 -m pip install meson==0.61.5
     - name: Prepare package id
@@ -310,7 +313,7 @@ jobs:
       artifact_linux: ${{ steps.output_setup.outputs.artifact_name }}
   build-linux-old:
     name: ${{ matrix.name }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest # only a host environement, actual building happens in a docker image
     strategy:
       matrix:
         name: [
@@ -403,7 +406,7 @@ jobs:
           - system-deps: false
           - output-id: ""
           - name: windows-x86_64
-            os: windows-2019
+            os: windows-2022
             package: true
             python-version: 3.12.x
             output-id: artifact_windows
@@ -432,6 +435,7 @@ jobs:
         cd scripts
         rm /usr/local/bin/2to3* # symlink to some kind of existing python2.7 installation conflicts with brew python3 which gets installed as indirect dependency
         brew bundle
+        brew install pkg-config || brew link --overwrite pkgconf
         brew install kadwanev/brew/retry
     - name: py dependencies
       run: |
@@ -455,6 +459,7 @@ jobs:
       run: |
         export MACOSX_DEPLOYMENT_TARGET=10.15
         scripts/fetch_deps.sh
+        install_name_tool -delete_rpath /Users/runner/work/cutter-deps/cutter-deps/qt/lib ./cutter-deps/pyside/lib/libpyside6.cpython-312-darwin.6.7.2.dylib #TODO: do this in cutter-deps
         source cutter-deps/env.sh
         set -euo pipefail
         export PATH=/usr/local/opt/llvm/bin:$PATH
@@ -487,8 +492,7 @@ jobs:
         # https://github.com/actions/runner-images/issues/7522#issuecomment-1556766641
         echo killing XProtectBehaviorService; sudo pkill -9 XProtect >/dev/null || true;
         echo waiting for XProtectBehaviorService kill; while pgrep XProtect; do sleep 3; done;
-        # Rimraf plugins built by `make package` because jsdec cannot be built twice
-        retry 'rm -rf ../jsdec ../libswift ../rz_libyara ../rz-silhouette; make package'
+        retry make package
         export CUTTER_VERSION=$(python3 ../scripts/get_version.py)
         echo PACKAGE_NAME=${PACKAGE_NAME}.dmg >> $GITHUB_ENV
         echo PACKAGE_PATH=build/${PACKAGE_NAME}.dmg >> $GITHUB_ENV
@@ -507,7 +511,7 @@ jobs:
         set ARCH=x64
         set CUTTER_DEPS=%CD%\cutter-deps
         set PATH=%CD%\cutter-deps\qt\bin;%PATH%
-        call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
+        call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
         cd
         mkdir build
         cd build
@@ -518,6 +522,10 @@ jobs:
           -DCUTTER_ENABLE_PYTHON=ON ^
           -DCUTTER_ENABLE_PYTHON_BINDINGS=ON ^
           -DCUTTER_ENABLE_PACKAGING=ON ^
+          -DPython3_FIND_REGISTRY=NEVER ^
+          -DPython3_FIND_STRATEGY=LOCATION ^
+          -DPython_FIND_REGISTRY=NEVER ^
+          -DPython_FIND_STRATEGY=LOCATION ^
           -DCUTTER_ENABLE_SIGDB=ON ^
           -DCUTTER_PACKAGE_DEPENDENCIES=ON ^
           -DCUTTER_PACKAGE_RZ_GHIDRA=ON ^
@@ -580,7 +588,7 @@ jobs:
         ]
         include:
           - name: linux-x86_64 
-            os: ubuntu-20.04
+            os: ubuntu-22.04
             artifact-job: build-linux
             artifact-output: artifact_linux
           - name: macos-arm64
@@ -588,7 +596,7 @@ jobs:
             artifact-job: build
             artifact-output: artifact_macos
           - name: windows
-            os: windows-2019
+            os: windows-2022
             artifact-job: build
             artifact-output: artifact_windows
       fail-fast: false

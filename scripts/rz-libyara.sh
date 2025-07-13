@@ -19,7 +19,7 @@ meson --buildtype=release --pkg-config-path="$INSTALL_PREFIX/lib/pkgconfig" --pr
 ninja -C build install
 
 cd cutter-plugin
-mkdir build && cd build
+mkdir -p build && cd build
 cmake -G Ninja -DRIZIN_INSTALL_PLUGDIR="../build" -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" $EXTRA_CMAKE_OPTS ..
 ninja
 ninja install
