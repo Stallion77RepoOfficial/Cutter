@@ -1,22 +1,22 @@
-#include <QDebug>
-#include <QJsonObject>
-#include <QMap>
-#include <QPainter>
-#include <QPainterPath>
-#include <QFontMetrics>
-#include <QScreen>
-#include <QJsonArray>
-#include <QScrollBar>
-#include <QApplication>
-#include <QSvgRenderer>
-#include <QMouseEvent>
-#include <QSortFilterProxyModel>
+#include "widgets/ColorThemeListView.h"
 
-#include "common/Configuration.h"
 #include "common/ColorThemeWorker.h"
+#include "common/Configuration.h"
 #include "common/Helpers.h"
 
-#include "widgets/ColorThemeListView.h"
+#include <QApplication>
+#include <QDebug>
+#include <QFontMetrics>
+#include <QJsonArray>
+#include <QJsonObject>
+#include <QMap>
+#include <QMouseEvent>
+#include <QPainter>
+#include <QPainterPath>
+#include <QScreen>
+#include <QScrollBar>
+#include <QSortFilterProxyModel>
+#include <QSvgRenderer>
 
 constexpr int allFieldsRole = Qt::UserRole + 2;
 
@@ -27,32 +27,28 @@ struct OptionInfo
 };
 
 namespace {
-extern const QMap<QString, OptionInfo> OPTION_INFO_MAP;
+extern const QMap<QString, OptionInfo> optionInfoMap;
 }
 
 ColorOptionDelegate::ColorOptionDelegate(QObject *parent) : QStyledItemDelegate(parent)
 {
     resetButtonPixmap = getPixmapFromSvg(":/img/icons/reset.svg", qApp->palette().text().color());
-    connect(qApp, &QGuiApplication::paletteChanged, this, [this]() {
-        resetButtonPixmap =
-                getPixmapFromSvg(":/img/icons/reset.svg", qApp->palette().text().color());
-    });
 }
 
 void ColorOptionDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
                                 const QModelIndex &index) const
 {
-    int margin = this->margin;
+    const int margin = this->margin;
     painter->save();
     painter->setFont(option.font);
     painter->setRenderHint(QPainter::Antialiasing);
 
-    ColorOption currCO = index.data(Qt::UserRole).value<ColorOption>();
+    const auto currCO = index.data(Qt::UserRole).value<ColorOption>();
 
-    QFontMetrics fm = QFontMetrics(painter->font());
-    int penWidth = painter->pen().width();
-    int fontHeight = fm.height();
-    QPoint tl = option.rect.topLeft();
+    const QFontMetrics fm = QFontMetrics(painter->font());
+    const int penWidth = painter->pen().width();
+    const int fontHeight = fm.height();
+    const QPoint tl = option.rect.topLeft();
 
     QRect optionNameRect;
     optionNameRect.setTopLeft(tl + QPoint(margin, penWidth));
@@ -96,7 +92,7 @@ void ColorOptionDelegate::paint(QPainter *painter, const QStyleOptionViewItem &o
             }
         } else {
 #if (QT_VERSION >= QT_VERSION_CHECK(5, 12, 0))
-            QColor placeholderColor = qApp->palette().placeholderText().color();
+            const QColor placeholderColor = qApp->palette().placeholderText().color();
 #else
             QColor placeholderColor = qApp->palette().text().color();
             placeholderColor.setAlphaF(0.5);
@@ -110,9 +106,9 @@ void ColorOptionDelegate::paint(QPainter *painter, const QStyleOptionViewItem &o
         painter->fillRect(option.rect, br);
 
         painter->setPen(pen);
-        int pw = painter->pen().width() / 2;
-        QPoint top = option.rect.topLeft() + QPoint(pw, pw);
-        QPoint bottom = option.rect.bottomLeft() - QPoint(-pw, pw - 1);
+        const int pw = painter->pen().width() / 2;
+        const QPoint top = option.rect.topLeft() + QPoint(pw, pw);
+        const QPoint bottom = option.rect.bottomLeft() - QPoint(-pw, pw - 1);
         painter->drawLine(top, bottom);
     }
 
@@ -128,10 +124,10 @@ void ColorOptionDelegate::paint(QPainter *painter, const QStyleOptionViewItem &o
 
     painter->setPen(qApp->palette().text().color());
 
-    QFontMetrics fm2 = QFontMetrics(painter->font());
-    auto info = OPTION_INFO_MAP[currCO.optionName];
-    QString name = fm2.elidedText(QApplication::translate("ColorTheme", info.displayingtext),
-                                  Qt::ElideRight, optionNameRect.width());
+    const QFontMetrics fm2 = QFontMetrics(painter->font());
+    auto info = optionInfoMap[currCO.optionName];
+    const QString name = fm2.elidedText(QApplication::translate("ColorTheme", info.displayingtext),
+                                        Qt::ElideRight, optionNameRect.width());
     painter->drawText(optionNameRect, name);
 
     QPainterPath roundedOptionRect;
@@ -158,10 +154,10 @@ void ColorOptionDelegate::paint(QPainter *painter, const QStyleOptionViewItem &o
     painter->setPen(currCO.color);
     painter->fillPath(roundedColorRect, currCO.color);
 
-    QFontMetrics fm3 = QFontMetrics(painter->font());
-    QString desc = fm3.elidedText(currCO.optionName + ": "
-                                          + QApplication::translate("ColorTheme", info.info),
-                                  Qt::ElideRight, descTextRect.width());
+    const QFontMetrics fm3 = QFontMetrics(painter->font());
+    const QString desc = fm3.elidedText(currCO.optionName + ": "
+                                                + QApplication::translate("ColorTheme", info.info),
+                                        Qt::ElideRight, descTextRect.width());
     painter->setPen(qApp->palette().text().color());
     painter->setBrush(qApp->palette().text());
     painter->drawText(descTextRect, desc);
@@ -172,8 +168,8 @@ void ColorOptionDelegate::paint(QPainter *painter, const QStyleOptionViewItem &o
 QSize ColorOptionDelegate::sizeHint(const QStyleOptionViewItem &option,
                                     const QModelIndex &index) const
 {
-    qreal margin = this->margin;
-    qreal fontHeight = option.fontMetrics.height();
+    const qreal margin = this->margin;
+    const qreal fontHeight = option.fontMetrics.height();
     qreal h = QPen().width();
     h += fontHeight; // option name
     h += margin / 2; // margin between option rect and option name
@@ -191,6 +187,14 @@ QRect ColorOptionDelegate::getResetButtonRect() const
     return resetButtonRect;
 }
 
+void ColorOptionDelegate::changeEvent(QEvent *event)
+{
+    if (event->type() == QEvent::ApplicationPaletteChange) {
+        resetButtonPixmap =
+                getPixmapFromSvg(":/img/icons/reset.svg", qApp->palette().text().color());
+    }
+}
+
 QPixmap ColorOptionDelegate::getPixmapFromSvg(const QString &fileName, const QColor &after) const
 {
     QFile file(fileName);
@@ -201,7 +205,7 @@ QPixmap ColorOptionDelegate::getPixmapFromSvg(const QString &fileName, const QCo
     data.replace(QRegularExpression("#[0-9a-fA-F]{6}"), QString("%1").arg(after.name()));
 
     QSvgRenderer svgRenderer(data.toUtf8());
-    QFontMetrics fm = QFontMetrics(qApp->font());
+    const QFontMetrics fm = QFontMetrics(qApp->font());
     QPixmap pix(QSize(fm.height(), fm.height()));
     pix.fill(Qt::transparent);
 
@@ -213,8 +217,8 @@ QPixmap ColorOptionDelegate::getPixmapFromSvg(const QString &fileName, const QCo
 
 ColorThemeListView::ColorThemeListView(QWidget *parent) : QListView(parent)
 {
-    QSortFilterProxyModel *proxy = new QSortFilterProxyModel(this);
-    ColorSettingsModel *model = new ColorSettingsModel(this);
+    auto *proxy = new QSortFilterProxyModel(this);
+    auto *model = new ColorSettingsModel(this);
     proxy->setSourceModel(model);
     model->updateTheme();
     setModel(proxy);
@@ -229,7 +233,7 @@ ColorThemeListView::ColorThemeListView(QWidget *parent) : QListView(parent)
 
     connect(&blinkTimer, &QTimer::timeout, this, &ColorThemeListView::blinkTimeout);
 
-    blinkTimer.setInterval(400);
+    blinkTimer.setInterval(600);
     blinkTimer.start();
 
     setMouseTracking(true);
@@ -237,20 +241,27 @@ ColorThemeListView::ColorThemeListView(QWidget *parent) : QListView(parent)
 
 void ColorThemeListView::currentChanged(const QModelIndex &current, const QModelIndex &previous)
 {
-    ColorOption prev = previous.data(Qt::UserRole).value<ColorOption>();
+    const auto prev = previous.data(Qt::UserRole).value<ColorOption>();
     Config()->setColor(prev.optionName, prev.color);
-    if (ThemeWorker().getRizinSpecificOptions().contains(prev.optionName)) {
+    const bool isRizinOption = ThemeWorker().getRizinSpecificOptions().contains(prev.optionName);
+    if (isRizinOption) {
         Core()->setColor(prev.optionName, prev.color.name());
     }
 
     QListView::currentChanged(current, previous);
     emit itemChanged(current.data(Qt::UserRole).value<ColorOption>().color);
+
+    // restart the timer
+    if (isRizinOption) {
+        blinkTimeout();
+        blinkTimer.start();
+    }
 }
 
 void ColorThemeListView::dataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight,
                                      const QVector<int> &roles)
 {
-    ColorOption curr = topLeft.data(Qt::UserRole).value<ColorOption>();
+    const auto curr = topLeft.data(Qt::UserRole).value<ColorOption>();
     if (curr.optionName == "gui.background") {
         backgroundColor = curr.color;
     }
@@ -264,7 +275,7 @@ void ColorThemeListView::mouseReleaseEvent(QMouseEvent *e)
     if (qobject_cast<ColorOptionDelegate *>(itemDelegate())
                 ->getResetButtonRect()
                 .contains(e->pos())) {
-        ColorOption co = currentIndex().data(Qt::UserRole).value<ColorOption>();
+        auto co = currentIndex().data(Qt::UserRole).value<ColorOption>();
         co.changed = false;
         co.color = ThemeWorker().getTheme(Config()->getColorTheme())[co.optionName];
         model()->setData(currentIndex(), QVariant::fromValue(co));
@@ -297,7 +308,7 @@ ColorSettingsModel *ColorThemeListView::colorSettingsModel() const
 
 void ColorThemeListView::blinkTimeout()
 {
-    static enum { Normal, Invisible } state = Normal;
+    static enum : ut8 { Normal, Invisible } state = Normal;
     state = state == Normal ? Invisible : Normal;
     backgroundColor.setAlphaF(1);
 
@@ -308,7 +319,7 @@ void ColorThemeListView::blinkTimeout()
         }
     };
 
-    ColorOption curr = currentIndex().data(Qt::UserRole).value<ColorOption>();
+    const auto curr = currentIndex().data(Qt::UserRole).value<ColorOption>();
     switch (state) {
     case Normal:
         updateColor(curr.optionName, curr.color);
@@ -333,7 +344,7 @@ QVariant ColorSettingsModel::data(const QModelIndex &index, int role) const
     }
 
     const QString key = theme.at(index.row()).optionName;
-    auto info = OPTION_INFO_MAP[key];
+    auto info = optionInfoMap[key];
 
     if (role == Qt::DisplayRole) {
         return QVariant::fromValue(QApplication::translate("ColorTheme", info.displayingtext));
@@ -348,7 +359,7 @@ QVariant ColorSettingsModel::data(const QModelIndex &index, int role) const
     }
 
     if (role == allFieldsRole) {
-        const QString name = key;
+        const QString &name = key;
         return QVariant::fromValue(QApplication::translate("ColorTheme", info.displayingtext) + " "
                                    + QApplication::translate("ColorTheme", info.info) + " " + name);
     }
@@ -362,7 +373,7 @@ bool ColorSettingsModel::setData(const QModelIndex &index, const QVariant &value
         return false;
     }
 
-    ColorOption currOpt = value.value<ColorOption>();
+    const auto currOpt = value.value<ColorOption>();
     theme[index.row()] = currOpt;
     emit dataChanged(index, index);
     return true;
@@ -372,16 +383,16 @@ void ColorSettingsModel::updateTheme()
 {
     beginResetModel();
     theme.clear();
-    ColorThemeWorker::Theme obj = ThemeWorker().getTheme(Config()->getColorTheme());
+    const ColorThemeWorker::Theme obj = ThemeWorker().getTheme(Config()->getColorTheme());
 
     for (auto it = obj.constBegin(); it != obj.constEnd(); it++) {
         theme.push_back({ it.key(), it.value(), false });
     }
 
     std::sort(theme.begin(), theme.end(), [](const ColorOption &f, const ColorOption &s) {
-        QString s1 = f.optionName;
-        QString s2 = s.optionName;
-        int r = s1.compare(s2, Qt::CaseSensitivity::CaseInsensitive);
+        const QString s1 = f.optionName;
+        const QString s2 = s.optionName;
+        const int r = s1.compare(s2, Qt::CaseSensitivity::CaseInsensitive);
         return r < 0;
     });
     endResetModel();
@@ -396,189 +407,281 @@ ColorThemeWorker::Theme ColorSettingsModel::getTheme() const
     return th;
 }
 
+// TODO: these should be queried from rizin
 namespace {
-const QMap<QString, OptionInfo> OPTION_INFO_MAP = {
+const QMap<QString, OptionInfo> optionInfoMap = {
     { "comment",
-      { QT_TRANSLATE_NOOP("ColorTheme", "Color of comment generated by Rizin"),
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for code comments"),
         QT_TRANSLATE_NOOP("ColorTheme", "Comment") } },
     { "usrcmt",
-      { QT_TRANSLATE_NOOP("ColorTheme", "Comment created by user"),
-        QT_TRANSLATE_NOOP("ColorTheme", "Color of user Comment") } },
-    { "args", { "", QT_TRANSLATE_NOOP("ColorTheme", "args") } },
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for user comments"),
+        QT_TRANSLATE_NOOP("ColorTheme", "User Comment") } },
+    { "args",
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for function arguments"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Arguments") } },
     { "fname",
-      { QT_TRANSLATE_NOOP("ColorTheme", "Color of names of functions"),
-        QT_TRANSLATE_NOOP("ColorTheme", "Function name") } },
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for function names"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Function Name") } },
     { "floc",
-      { QT_TRANSLATE_NOOP("ColorTheme", "Color of function location"),
-        QT_TRANSLATE_NOOP("ColorTheme", "Function location") } },
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for function locations"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Function Location") } },
     { "fline",
-      { QT_TRANSLATE_NOOP("ColorTheme",
-                          "Color of the line which shows which opcodes belongs to a function"),
-        QT_TRANSLATE_NOOP("ColorTheme", "Function line") } },
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for function lines"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Function Line") } },
     { "flag",
-      { QT_TRANSLATE_NOOP("ColorTheme", "Color of flags (similar to bookmarks for offset)"),
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for flags"),
         QT_TRANSLATE_NOOP("ColorTheme", "Flag") } },
-    { "label", { "", QT_TRANSLATE_NOOP("ColorTheme", "Label") } },
-    { "help", { "", QT_TRANSLATE_NOOP("ColorTheme", "Help") } },
+    { "label",
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for labels"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Label") } },
+    { "help",
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for help messages"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Help") } },
     { "flow",
-      { QT_TRANSLATE_NOOP("ColorTheme", "Color of lines showing jump destination"),
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for control flow"),
         QT_TRANSLATE_NOOP("ColorTheme", "Flow") } },
-    { "flow2", { "", QT_TRANSLATE_NOOP("ColorTheme", "flow2") } },
+    { "flow2",
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for control flow (alternative)"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Flow 2") } },
     { "prompt",
-      { QT_TRANSLATE_NOOP("ColorTheme", "Info"), QT_TRANSLATE_NOOP("ColorTheme", "prompt") } },
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for prompt"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Prompt") } },
     { "offset",
-      { QT_TRANSLATE_NOOP("ColorTheme", "Color of offsets"),
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for offsets"),
         QT_TRANSLATE_NOOP("ColorTheme", "Offset") } },
     { "input",
-      { QT_TRANSLATE_NOOP("ColorTheme", "Info"), QT_TRANSLATE_NOOP("ColorTheme", "input") } },
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for user input"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Input") } },
     { "invalid",
-      { QT_TRANSLATE_NOOP("ColorTheme", "Invalid opcode color"),
-        QT_TRANSLATE_NOOP("ColorTheme", "invalid") } },
-    { "other", { "", QT_TRANSLATE_NOOP("ColorTheme", "other") } },
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for invalid instructions"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Invalid") } },
+    { "other",
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for other elements"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Other") } },
     { "b0x00",
-      { QT_TRANSLATE_NOOP("ColorTheme", "0x00 opcode color"),
-        QT_TRANSLATE_NOOP("ColorTheme", "b0x00") } },
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for null bytes (0x00)"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Byte 0x00") } },
     { "b0x7f",
-      { QT_TRANSLATE_NOOP("ColorTheme", "0x7f opcode color"),
-        QT_TRANSLATE_NOOP("ColorTheme", "b0x7f") } },
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for 0x7f bytes"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Byte 0x7f") } },
     { "b0xff",
-      { QT_TRANSLATE_NOOP("ColorTheme", "0xff opcode color"),
-        QT_TRANSLATE_NOOP("ColorTheme", "b0xff") } },
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for 0xff bytes"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Byte 0xff") } },
     { "math",
-      { QT_TRANSLATE_NOOP("ColorTheme", "Color of arithmetic opcodes (add, div, mul etc)"),
-        QT_TRANSLATE_NOOP("ColorTheme", "Arithmetic") } },
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for math operations"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Math") } },
     { "bin",
-      { QT_TRANSLATE_NOOP("ColorTheme", "Color of binary operations (and, or, xor etc)."),
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for binary information"),
         QT_TRANSLATE_NOOP("ColorTheme", "Binary") } },
     { "btext",
-      { QT_TRANSLATE_NOOP(
-                "ColorTheme",
-                "Color of object names, commas between operators, squared brackets and operators "
-                "inside them."),
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for text in binary"),
         QT_TRANSLATE_NOOP("ColorTheme", "Text") } },
     { "push",
-      { QT_TRANSLATE_NOOP("ColorTheme", "push opcode color"),
-        QT_TRANSLATE_NOOP("ColorTheme", "push") } },
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for push instructions"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Push") } },
     { "pop",
-      { QT_TRANSLATE_NOOP("ColorTheme", "pop opcode color"),
-        QT_TRANSLATE_NOOP("ColorTheme", "pop") } },
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for pop instructions"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Pop") } },
     { "crypto",
-      { QT_TRANSLATE_NOOP("ColorTheme", "Cryptographic color"),
-        QT_TRANSLATE_NOOP("ColorTheme", "crypto") } },
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for crypto instructions"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Crypto") } },
     { "jmp",
-      { QT_TRANSLATE_NOOP("ColorTheme", "jmp instructions color"),
-        QT_TRANSLATE_NOOP("ColorTheme", "jmp") } },
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for jump instructions"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Jump") } },
     { "cjmp",
-      { QT_TRANSLATE_NOOP("ColorTheme",
-                          "Color of conditional jump opcodes such as je, jg, jne etc"),
-        QT_TRANSLATE_NOOP("ColorTheme", "Conditional jump") } },
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for conditional jumps"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Conditional Jump") } },
     { "call",
-      { QT_TRANSLATE_NOOP("ColorTheme", "call instructions color (ccall, rcall, call etc)"),
-        QT_TRANSLATE_NOOP("ColorTheme", "call") } },
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for call instructions"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Call") } },
     { "nop",
-      { QT_TRANSLATE_NOOP("ColorTheme", "nop opcode color"),
-        QT_TRANSLATE_NOOP("ColorTheme", "nop") } },
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for nop instructions"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Nop") } },
     { "ret",
-      { QT_TRANSLATE_NOOP("ColorTheme", "ret opcode color"),
-        QT_TRANSLATE_NOOP("ColorTheme", "ret") } },
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for return instructions"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Return") } },
     { "trap",
-      { QT_TRANSLATE_NOOP("ColorTheme", "Color of interrupts"),
-        QT_TRANSLATE_NOOP("ColorTheme", "Interrupts") } },
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for trap/interrupt instructions"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Trap") } },
+    { "ucall",
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for unknown calls"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Unknown Call") } },
+    { "ujmp",
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for unknown jumps"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Unknown Jump") } },
     { "swi",
-      { QT_TRANSLATE_NOOP("ColorTheme", "swi opcode color"),
-        QT_TRANSLATE_NOOP("ColorTheme", "swi") } },
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for software interrupts"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Software Interrupt") } },
     { "cmp",
-      { QT_TRANSLATE_NOOP("ColorTheme", "Color of compare instructions such as test and cmp"),
-        QT_TRANSLATE_NOOP("ColorTheme", "Compare instructions") } },
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for compare instructions"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Compare") } },
     { "reg",
-      { QT_TRANSLATE_NOOP("ColorTheme", "Registers color"),
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for registers"),
         QT_TRANSLATE_NOOP("ColorTheme", "Register") } },
-    { "creg", { "", QT_TRANSLATE_NOOP("ColorTheme", "creg") } },
+    { "creg",
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for changed registers"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Changed Register") } },
     { "num",
-      { QT_TRANSLATE_NOOP("ColorTheme", "Color of numeric constants and object pointers"),
-        QT_TRANSLATE_NOOP("ColorTheme", "Constants") } },
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for numbers"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Number") } },
     { "mov",
-      { QT_TRANSLATE_NOOP("ColorTheme", "Color of move instructions such as mov, movd, lea etc"),
-        QT_TRANSLATE_NOOP("ColorTheme", "Move instructions") } },
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for move instructions"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Move") } },
     { "func_var",
-      { QT_TRANSLATE_NOOP("ColorTheme", "Function variable color"),
-        QT_TRANSLATE_NOOP("ColorTheme", "Function variable") } },
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for function variables"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Function Variable") } },
     { "func_var_type",
-      { QT_TRANSLATE_NOOP("ColorTheme", "Function variable (local or argument) type color"),
-        QT_TRANSLATE_NOOP("ColorTheme", "Variable type") } },
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for function variable types"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Variable Type") } },
     { "func_var_addr",
-      { QT_TRANSLATE_NOOP("ColorTheme", "Function variable address color"),
-        QT_TRANSLATE_NOOP("ColorTheme", "Variable address") } },
-    { "widget_bg", { "", QT_TRANSLATE_NOOP("ColorTheme", "widget_bg") } },
-    { "widget_sel", { "", QT_TRANSLATE_NOOP("ColorTheme", "widget_sel") } },
-    { "ai.read", { "", QT_TRANSLATE_NOOP("ColorTheme", "ai.read") } },
-    { "ai.write", { "", QT_TRANSLATE_NOOP("ColorTheme", "ai.write") } },
-    { "ai.exec", { "", QT_TRANSLATE_NOOP("ColorTheme", "ai.exec") } },
-    { "ai.seq", { "", QT_TRANSLATE_NOOP("ColorTheme", "ai.seq") } },
-    { "ai.ascii", { "", QT_TRANSLATE_NOOP("ColorTheme", "ai.ascii") } },
-    { "graph.box", { "", QT_TRANSLATE_NOOP("ColorTheme", "graph.box") } },
-    { "graph.box2", { "", QT_TRANSLATE_NOOP("ColorTheme", "graph.box2") } },
-    { "graph.box3", { "", QT_TRANSLATE_NOOP("ColorTheme", "graph.box3") } },
-    { "graph.box4", { "", QT_TRANSLATE_NOOP("ColorTheme", "graph.box4") } },
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for function variable addresses"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Variable Address") } },
+    { "widget_bg",
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for widget background"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Widget Background") } },
+    { "widget_sel",
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for selected widget"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Widget Selection") } },
+    { "meta",
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for metadata"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Metadata") } },
+    { "ai.read",
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for memory read access"),
+        QT_TRANSLATE_NOOP("ColorTheme", "AI Read") } },
+    { "ai.write",
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for memory write access"),
+        QT_TRANSLATE_NOOP("ColorTheme", "AI Write") } },
+    { "ai.exec",
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for executable memory"),
+        QT_TRANSLATE_NOOP("ColorTheme", "AI Exec") } },
+    { "ai.seq",
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for sequential memory"),
+        QT_TRANSLATE_NOOP("ColorTheme", "AI Sequence") } },
+    { "ai.ascii",
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for ASCII in memory"),
+        QT_TRANSLATE_NOOP("ColorTheme", "AI ASCII") } },
+    { "graph.box",
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for graph box"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Graph Box") } },
+    { "graph.box2",
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for graph box (alternative 2)"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Graph Box 2") } },
+    { "graph.box3",
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for graph box (alternative 3)"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Graph Box 3") } },
+    { "graph.box4",
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for graph box (alternative 4)"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Graph Box 4") } },
     { "graph.true",
-      { QT_TRANSLATE_NOOP("ColorTheme", "In graph view jump arrow true"),
-        QT_TRANSLATE_NOOP("ColorTheme", "Arrow true") } },
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for true branch in graph"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Arrow True") } },
     { "graph.false",
-      { QT_TRANSLATE_NOOP("ColorTheme", "In graph view jump arrow false"),
-        QT_TRANSLATE_NOOP("ColorTheme", "Arrow false") } },
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for false branch in graph"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Arrow False") } },
     { "graph.trufae",
       { QT_TRANSLATE_NOOP("ColorTheme", "In graph view jump arrow (no condition)"),
         QT_TRANSLATE_NOOP("ColorTheme", "Arrow") } },
-    { "graph.current", { "", QT_TRANSLATE_NOOP("ColorTheme", "graph.current") } },
-    { "graph.traced", { "", QT_TRANSLATE_NOOP("ColorTheme", "graph.traced") } },
+    { "graph.ujump",
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for unknown jump in graph"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Graph Undefined Jump") } },
+    { "graph.current",
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for current node in graph"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Graph Current") } },
+    { "graph.traced",
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for traced node in graph"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Graph Traced") } },
+    { "diff.unknown",
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for unknown diff"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Diff Unknown") } },
+    { "diff.new",
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for new diff"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Diff New") } },
+    { "diff.match",
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for matched diff"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Diff Match") } },
+    { "diff.unmatch",
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for unmatched diff"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Diff Unmatch") } },
     { "gui.overview.node",
       { QT_TRANSLATE_NOOP("ColorTheme", "Background color of Graph Overview's node"),
-        QT_TRANSLATE_NOOP("ColorTheme", "Graph Overview node") } },
+        QT_TRANSLATE_NOOP("ColorTheme", "Graph Overview Node") } },
     { "gui.overview.fill",
       { QT_TRANSLATE_NOOP("ColorTheme", "Fill color of Graph Overview's selection"),
-        QT_TRANSLATE_NOOP("ColorTheme", "Graph Overview fill") } },
+        QT_TRANSLATE_NOOP("ColorTheme", "Graph Overview Fill") } },
     { "gui.overview.border",
       { QT_TRANSLATE_NOOP("ColorTheme", "Border color of Graph Overview's selection"),
-        QT_TRANSLATE_NOOP("ColorTheme", "Graph Overview border") } },
-    { "gui.cflow", { "", QT_TRANSLATE_NOOP("ColorTheme", "gui.cflow") } },
-    { "gui.dataoffset", { "", QT_TRANSLATE_NOOP("ColorTheme", "gui.dataoffset") } },
+        QT_TRANSLATE_NOOP("ColorTheme", "Graph Overview Border") } },
+    { "gui.cflow",
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for GUI control flow"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Control Flow") } },
+    { "gui.dataoffset",
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for GUI data offset"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Data Offset") } },
     { "gui.background",
-      { QT_TRANSLATE_NOOP("ColorTheme", "General background color"),
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for GUI background"),
         QT_TRANSLATE_NOOP("ColorTheme", "Background") } },
     { "gui.alt_background",
-      { QT_TRANSLATE_NOOP("ColorTheme", "Background color of non-focused graph node"),
-        QT_TRANSLATE_NOOP("ColorTheme", "Node background") } },
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for GUI alternate background"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Node Background") } },
     { "gui.disass_selected",
       { QT_TRANSLATE_NOOP("ColorTheme", "Background of current graph node"),
-        QT_TRANSLATE_NOOP("ColorTheme", "Current graph node") } },
+        QT_TRANSLATE_NOOP("ColorTheme", "Current Node") } },
     { "gui.border",
-      { QT_TRANSLATE_NOOP("ColorTheme", "Color of node border in graph view"),
-        QT_TRANSLATE_NOOP("ColorTheme", "Node border") } },
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for GUI border"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Node Border") } },
     { "lineHighlight",
-      { QT_TRANSLATE_NOOP("ColorTheme", "Selected line background color"),
-        QT_TRANSLATE_NOOP("ColorTheme", "Line highlight") } },
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for highlighted line"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Line Highlight") } },
     { "wordHighlight",
-      { QT_TRANSLATE_NOOP("ColorTheme", "Background color of selected word"),
-        QT_TRANSLATE_NOOP("ColorTheme", "Word highlight") } },
+      { QT_TRANSLATE_NOOP("ColorTheme", "Background color for highlighted word"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Word Highlight Background") } },
+    { "searchCurrent",
+      { QT_TRANSLATE_NOOP("ColorTheme", "Background color for the currently selected search match"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Current Search Highlight") } },
+    { "searchHighlight",
+      { QT_TRANSLATE_NOOP("ColorTheme", "Background color for all search matches"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Search Highlight") } },
     { "gui.main",
       { QT_TRANSLATE_NOOP("ColorTheme", "Main function color"),
-        QT_TRANSLATE_NOOP("ColorTheme", "Main") } },
-    { "gui.imports", { "", QT_TRANSLATE_NOOP("ColorTheme", "gui.imports") } },
-    { "highlightPC", { "", QT_TRANSLATE_NOOP("ColorTheme", "highlightPC") } },
-    { "gui.navbar.err", { "", QT_TRANSLATE_NOOP("ColorTheme", "gui.navbar.err") } },
-    { "gui.navbar.seek", { "", QT_TRANSLATE_NOOP("ColorTheme", "gui.navbar.seek") } },
-    { "angui.navbar.str", { "", QT_TRANSLATE_NOOP("ColorTheme", "angui.navbar.str") } },
-    { "gui.navbar.pc", { "", QT_TRANSLATE_NOOP("ColorTheme", "gui.navbar.pc") } },
-    { "gui.navbar.sym", { "", QT_TRANSLATE_NOOP("ColorTheme", "gui.navbar.sym") } },
+        QT_TRANSLATE_NOOP("ColorTheme", "Main Function") } },
+    { "gui.imports",
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for imported symbols"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Imports") } },
+    { "highlightPC",
+      { QT_TRANSLATE_NOOP("ColorTheme", "Color for Program Counter highlight"),
+        QT_TRANSLATE_NOOP("ColorTheme", "PC Highlight") } },
+    { "gui.navbar.err",
+      { QT_TRANSLATE_NOOP("ColorTheme", "Error color in navigation bar"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Navbar Error") } },
+    { "gui.navbar.seek",
+      { QT_TRANSLATE_NOOP("ColorTheme", "Seek color in navigation bar"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Navbar Seek") } },
+    { "gui.navbar.str",
+      { QT_TRANSLATE_NOOP("ColorTheme", "String color in navigation bar"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Navbar String") } },
+    { "gui.navbar.pc",
+      { QT_TRANSLATE_NOOP("ColorTheme", "PC position color in navigation bar"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Navbar PC") } },
+    { "gui.navbar.sym",
+      { QT_TRANSLATE_NOOP("ColorTheme", "Symbol color in navigation bar"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Navbar Symbol") } },
     { "gui.navbar.code",
       { QT_TRANSLATE_NOOP("ColorTheme", "Code section color in navigation bar"),
-        QT_TRANSLATE_NOOP("ColorTheme", "Navbar code") } },
-    { "gui.navbar.empty",
-      { QT_TRANSLATE_NOOP("ColorTheme", "Empty section color in navigation bar"),
-        QT_TRANSLATE_NOOP("ColorTheme", "Navbar empty") } },
-    { "ucall", { "", QT_TRANSLATE_NOOP("ColorTheme", "ucall") } },
-    { "ujmp", { "", QT_TRANSLATE_NOOP("ColorTheme", "ujmp") } },
+        QT_TRANSLATE_NOOP("ColorTheme", "Navbar Code") } },
+    { "gui.navbar.import",
+      { QT_TRANSLATE_NOOP("ColorTheme", "Import section color in navigation bar"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Navbar Import") } },
+    { "gui.navbar.signature",
+      { QT_TRANSLATE_NOOP("ColorTheme", "Signature section color in navigation bar"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Navbar Signature") } },
+    { "gui.navbar.data",
+      { QT_TRANSLATE_NOOP("ColorTheme", "Data section color in navigation bar"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Navbar Data") } },
+    { "gui.navbar.unexplored",
+      { QT_TRANSLATE_NOOP("ColorTheme", "Unexplored section color in navigation bar"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Navbar Unexplored") } },
     { "gui.breakpoint_background",
-      { "", QT_TRANSLATE_NOOP("ColorTheme", "Breakpoint background") } }
+      { QT_TRANSLATE_NOOP("ColorTheme", "Background color for breakpoints"),
+        QT_TRANSLATE_NOOP("ColorTheme", "Breakpoint Background") } },
 };
 }

@@ -1,8 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
-
-if(POLICY CMP0074)
-    cmake_policy(SET CMP0074 NEW)
-endif()
+cmake_minimum_required(VERSION 3.12)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(DisallowInSource)
@@ -23,6 +19,7 @@ set(CUTTER_EXTRA_PLUGIN_DIRS "" CACHE STRING "List of addition plugin locations"
 option(CUTTER_ENABLE_DEPENDENCY_DOWNLOADS "Enable downloading of dependencies. Setting to OFF doesn't affect any downloads done by rizin build." OFF)
 option(CUTTER_ENABLE_PACKAGING "Enable building platform-specific packages for distributing" OFF)
 option(CUTTER_ENABLE_SIGDB "Downloads and installs sigdb (only available when CUTTER_USE_BUNDLED_RIZIN=ON)." OFF)
+option(CUTTER_ENABLE_TRANSLATIONS "Build and install translation files" ON)
 option(CUTTER_PACKAGE_DEPENDENCIES "During install step include the third party dependencies." OFF)
 option(CUTTER_PACKAGE_RZ_GHIDRA "Compile and install rz-ghidra during install step." OFF)
 option(CUTTER_PACKAGE_RZ_LIBSWIFT "Compile and install rz-libswift demangler during the install step." OFF)
@@ -39,7 +36,7 @@ if(NOT CUTTER_ENABLE_PYTHON)
 endif()
 
 set(CUTTER_VERSION_MAJOR 2)
-set(CUTTER_VERSION_MINOR 4)
+set(CUTTER_VERSION_MINOR 5)
 set(CUTTER_VERSION_PATCH 0)
 
 set(CUTTER_VERSION "${CUTTER_VERSION_MAJOR}.${CUTTER_VERSION_MINOR}.${CUTTER_VERSION_PATCH}")
@@ -73,7 +70,7 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 # Put Qt files in a separate folder
 set_property(GLOBAL PROPERTY AUTOGEN_SOURCE_GROUP "Generated Files")
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 20)
 
 include(CutterInstallDirs)
 
@@ -97,14 +94,8 @@ set(QT_PREFIX "Qt${CUTTER_QT}")
 find_package(${QT_PREFIX} REQUIRED COMPONENTS ${QT_COMPONENTS})
 
 if(CUTTER_ENABLE_PYTHON)
-    if(CMAKE_VERSION VERSION_LESS "3.12.0") 
-        find_package(PythonInterp REQUIRED)
-        find_package(PythonLibs ${CUTTER_PYTHON_MIN} REQUIRED)
-        include_directories(${PYTHON_INCLUDE_DIRS})
-    else()
-        find_package (Python3 ${CUTTER_PYTHON_MIN} REQUIRED COMPONENTS Interpreter Development)
-        set (PYTHON_EXECUTABLE ${Python3_EXECUTABLE})
-    endif()
+    find_package (Python3 ${CUTTER_PYTHON_MIN} REQUIRED COMPONENTS Interpreter Development)
+    set (PYTHON_EXECUTABLE ${Python3_EXECUTABLE})
 
     add_definitions(-DCUTTER_ENABLE_PYTHON)
 

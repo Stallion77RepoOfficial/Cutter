@@ -215,6 +215,10 @@ const QHash<QString, Shortcut> &getDefaultShortcuts()
           { { Qt::Key_Space },
             QT_TRANSLATE_NOOP("DisassemblyWidget", "Switch to Graph"),
             "DisassemblyWidget" } },
+        { "Disassembly.moveLeft",
+          { QList<QKeySequence> { Qt::Key_H }
+                    + QKeySequence::keyBindings(QKeySequence::MoveToPreviousChar),
+            QT_TRANSLATE_NOOP("DisassemblyWidget", "Move Cursor Down"), "DisassemblyWidget" } },
         { "Disassembly.moveDown",
           { QList<QKeySequence> { Qt::Key_J }
                     + QKeySequence::keyBindings(QKeySequence::MoveToNextLine),
@@ -222,6 +226,10 @@ const QHash<QString, Shortcut> &getDefaultShortcuts()
         { "Disassembly.moveUp",
           { QList<QKeySequence> { Qt::Key_K }
                     + QKeySequence::keyBindings(QKeySequence::MoveToPreviousLine),
+            QT_TRANSLATE_NOOP("DisassemblyWidget", "Move Cursor Up"), "DisassemblyWidget" } },
+        { "Disassembly.moveRight",
+          { QList<QKeySequence> { Qt::Key_L }
+                    + QKeySequence::keyBindings(QKeySequence::MoveToNextChar),
             QT_TRANSLATE_NOOP("DisassemblyWidget", "Move Cursor Up"), "DisassemblyWidget" } },
         { "Disassembly.pageDown",
           { QKeySequence::keyBindings(QKeySequence::MoveToNextPage),
@@ -274,6 +282,8 @@ const QHash<QString, Shortcut> &getDefaultShortcuts()
             "HexWidget" } },
         { "Hex.addFlag",
           { { Qt::Key_N }, QT_TRANSLATE_NOOP("HexWidget", "Add flag at address"), "HexWidget" } },
+        { "Hex.addMark",
+          { { Qt::Key_M }, QT_TRANSLATE_NOOP("HexWidget", "Add mark"), "HexWidget" } },
 
         // Imports
         { "Imports.toggle",
@@ -285,6 +295,14 @@ const QHash<QString, Shortcut> &getDefaultShortcuts()
         { "Omnibar.clear",
           { { QKeySequence(Qt::Key_Escape) },
             QT_TRANSLATE_NOOP("Omnibar", "Clear Omnibar"),
+            "Omnibar" } },
+        { "Omnibar.showMore",
+          { { QKeySequence(Qt::ControlModifier | Qt::Key_Return) },
+            QT_TRANSLATE_NOOP("Omnibar", "Show More Completions"),
+            "Omnibar" } },
+        { "Omnibar.showAll",
+          { { QKeySequence(Qt::ControlModifier | Qt::ShiftModifier | Qt::Key_Return) },
+            QT_TRANSLATE_NOOP("Omnibar", "Show All Completions"),
             "Omnibar" } },
 
         // Graph Overview
@@ -300,6 +318,67 @@ const QHash<QString, Shortcut> &getDefaultShortcuts()
           { { Qt::SHIFT | Qt::Key_F12 },
             QT_TRANSLATE_NOOP("StringsWidget", "Toggle Strings Window"),
             "StringsWidget" } },
+
+        // Search
+        { "Search.toggle",
+          { { QKeySequence::keyBindings(QKeySequence::Find) },
+            QT_TRANSLATE_NOOP("CutterSearchable", "Toggle Search Bar"),
+            "CutterSearchable" } },
+        { "Search.findNext",
+          { { Qt::Key_Return },
+            QT_TRANSLATE_NOOP("SearchBarWidget", "Find Next Match"),
+            "SearchBarWidget" } },
+        { "Search.findPrev",
+          { { Qt::SHIFT | Qt::Key_Return },
+            QT_TRANSLATE_NOOP("SearchBarWidget", "Find Previous Match"),
+            "SearchBarWidget" } },
+        { "Search.findLast",
+          { { Qt::CTRL | Qt::Key_Return },
+            QT_TRANSLATE_NOOP("SearchBarWidget", "Find Last Match"),
+            "SearchBarWidget" } },
+        { "Search.hide",
+          { { Qt::Key_Escape },
+            QT_TRANSLATE_NOOP("SearchBarWidget", "Hide Search Bar"),
+            "SearchBarWidget" } },
+        { "Search.options",
+          { { Qt::CTRL | Qt::Key_O },
+            QT_TRANSLATE_NOOP("SearchBarWidget", "Show Search Bar Options Menu"),
+            "SearchBarWidget" } },
+
+        // Types
+        { "Types.delete",
+          { { Qt::SHIFT | Qt::Key_D },
+            QT_TRANSLATE_NOOP("TypesWidget", "Delete"),
+            "TypesWidget" } },
+        { "Types.edit",
+          { { Qt::SHIFT | Qt::Key_E }, QT_TRANSLATE_NOOP("TypesWidget", "Edit"), "TypesWidget" } },
+        { "Types.export",
+          { { Qt::SHIFT | Qt::Key_X },
+            QT_TRANSLATE_NOOP("TypesWidget", "Export Types"),
+            "TypesWidget" } },
+        { "Types.load",
+          { { Qt::SHIFT | Qt::Key_L },
+            QT_TRANSLATE_NOOP("TypesWidget", "Load New Types"),
+            "TypesWidget" } },
+        { "Types.rename",
+          { { Qt::SHIFT | Qt::Key_R },
+            QT_TRANSLATE_NOOP("TypesWidget", "Rename"),
+            "TypesWidget" } },
+        { "Types.showUsages",
+          { { Qt::SHIFT | Qt::Key_U },
+            QT_TRANSLATE_NOOP("TypesWidget", "Show Usages"),
+            "TypesWidget" } },
+        { "Types.view",
+          { { QKeySequence(Qt::Key_Return), QKeySequence(Qt::SHIFT | Qt::Key_V) },
+            QT_TRANSLATE_NOOP("TypesWidget", "View"),
+            "TypesWidget" } },
+
+        // Docking
+        { "Docking.toggle",
+          { { Qt::Key_Alt },
+            QT_TRANSLATE_NOOP("CutterDockWidget", "Enable/Disable Docking"),
+            "CutterDockWidget" } },
+
     };
     return defaultShortcuts;
 }

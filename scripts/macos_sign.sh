@@ -97,6 +97,7 @@ resign_dmg() {
 	echo_step "Mounting temporary rw variant of ${TARGET} to Cutter-rw/"
 	rm -f Cutter-rw.dmg
 	ee hdiutil convert -format UDRW -o Cutter-rw.dmg "${TARGET}"
+	ee hdiutil resize -size 4G Cutter-rw.dmg # ensure enough space for temporary files during codesign
 	mkdir -p Cutter-rw
 	ee hdiutil attach Cutter-rw.dmg -mount required -mountpoint Cutter-rw
 	unmount() {
@@ -107,9 +108,17 @@ resign_dmg() {
 	notarize_bundle Cutter-rw/Cutter.app
 	unmount
 	trap - EXIT
+	# Remove temporary signing space and restore HFS+ volume consistency.
+	ee hdiutil resize -size min Cutter-rw.dmg
 	OUTPUT="${1%.*}-signed.dmg"
 	echo_step "Creating final read-only ${OUTPUT}"
 	ee hdiutil convert -format UDZO -o "${OUTPUT}" Cutter-rw.dmg
+	echo_step "Verifying filesystem in ${OUTPUT}"
+	ee hdiutil attach "${OUTPUT}" -readonly -nobrowse -noautofsck -mountpoint Cutter-rw
+	trap unmount EXIT
+	ee diskutil verifyVolume Cutter-rw
+	unmount
+	trap - EXIT
 }
 
 case "$1" in

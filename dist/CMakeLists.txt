@@ -14,13 +14,8 @@ if(WIN32)
 			if (CUTTER_ENABLE_DEPENDENCY_DOWNLOADS)
 				set(CPACK_INSTALL_SCRIPTS ${CMAKE_CURRENT_SOURCE_DIR}/WindowsBundlePython.cmake)
 			endif()
-			if(CMAKE_VERSION VERSION_LESS "3.12.0") 
-				find_package(PythonInterp REQUIRED)
-				install(DIRECTORY ${CUTTER_DEPS}/pyside/lib/site-packages DESTINATION "python${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR}")
-			else()
-				find_package (Python3 ${CUTTER_PYTHON_MIN} REQUIRED COMPONENTS)
-				install(DIRECTORY ${CUTTER_DEPS}/pyside/lib/site-packages DESTINATION "python${Python3_VERSION_MAJOR}${Python3_VERSION_MINOR}")
-			endif()
+			find_package (Python3 ${CUTTER_PYTHON_MIN} REQUIRED COMPONENTS)
+			install(DIRECTORY ${CUTTER_DEPS}/pyside/lib/site-packages DESTINATION "python${Python3_VERSION_MAJOR}${Python3_VERSION_MINOR}")
 			install(FILES ${CUTTER_DEPS}/pyside/bin/shiboken6.abi3.dll ${CUTTER_DEPS}/pyside/bin/pyside6.abi3.dll DESTINATION .)
 		endif()
 		install(SCRIPT WindowsBundleQt.cmake)
@@ -222,6 +217,16 @@ if(CUTTER_PACKAGE_RZ_GHIDRA)
 	else()
 		set (GHIDRA_OPTIONS "-DCUTTER_INSTALL_PLUGDIR=\${CMAKE_INSTALL_PREFIX}/share/rizin/cutter/plugins/native")
 	endif()
+	
+	if(WIN32)
+        if(EXISTS "$ENV{VCPKG_INSTALLATION_ROOT}/packages/zlib_x64-windows/bin/z.dll")
+            install(FILES "$ENV{VCPKG_INSTALLATION_ROOT}/packages/zlib_x64-windows/bin/z.dll" DESTINATION .)
+            message(STATUS "Found z.dll for rz-ghidra")
+        else()
+            message(WARNING "z.dll was not found at the expected vcpkg path. rz-ghidra might not load properly")
+        endif()
+    endif()
+
 	install(CODE "
 		execute_process(
 			WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/rz-ghidra-prefix/src/rz-ghidra-build
@@ -229,6 +234,7 @@ if(CUTTER_PACKAGE_RZ_GHIDRA)
 			COMMAND \${CMAKE_COMMAND}
 							../rz-ghidra
 							-DCMAKE_BUILD_TYPE=Release
+              -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}
 							\"-DCMAKE_PREFIX_PATH=\${CMAKE_INSTALL_PREFIX};\${CMAKE_INSTALL_PREFIX}/include/librz;\${CMAKE_INSTALL_PREFIX}/include/librz/sdb;${RZ_GHIDRA_PREFIX_PATH}\"
 							-DCMAKE_INSTALL_PREFIX=\${CMAKE_INSTALL_PREFIX}
 							${GHIDRA_OPTIONS}
